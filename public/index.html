@@ -4,58 +4,125 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Product Prices</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <h1>Product Prices</h1>
 
-<h2>Add a New Product</h2>
-<form id="product-form">
+<!-- 输入表单 -->
+<form id="productForm">
     <label for="date">Date:</label>
-    <input type="date" id="date" name="date" required><br><br>
+    <input type="date" id="date" name="date" required>
     <label for="name">Product Name:</label>
-    <input type="text" id="name" name="name" required><br><br>
+    <input type="text" id="name" name="name" value="tissue" readonly>
     <label for="price">Price:</label>
-    <input type="number" step="0.01" id="price" name="price" required><br><br>
+    <input type="number" step="0.01" id="price" name="price" required>
     <button type="submit">Add Product</button>
 </form>
 
-<h2>Product Prices List</h2>
-<button onclick="fetchPrices()">Fetch Prices</button>
-<div id="result"></div>
+<!-- 折线图 -->
+<canvas id="priceChart" width="800" height="400"></canvas>
 
 <script>
-    document.getElementById('product-form').addEventListener('submit', async function(event) {
+    document.getElementById('productForm').addEventListener('submit', async function(event) {
         event.preventDefault();
+
         const date = document.getElementById('date').value;
         const name = document.getElementById('name').value;
         const price = document.getElementById('price').value;
 
-        const response = await fetch('http://localhost:3001/add-product', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date, name, price })
-        });
-        const data = await response.json();
-        if (data.id) {
-            alert('Product added successfully!');
-            document.getElementById('product-form').reset();
-        } else {
-            alert('Error adding product');
+        // 发送新产品数据到后端
+        try {
+            const response = await fetch('http://localhost:3001/add-product', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ date, name, price: parseFloat(price) })
+            });
+
+            const result = await response.json();
+            if (result.message === 'Product added successfully') {
+                fetchPrices(); // 重新获取并更新图表数据
+            } else {
+                console.error('Error adding product:', result);
+            }
+        } catch (error) {
+            console.error('Error adding product:', error);
         }
     });
 
     async function fetchPrices() {
-        const response = await fetch('http://localhost:3001/prices');
-        const data = await response.json();
+        try {
+            const response = await fetch('http://localhost:3001/prices');
+            const data = await response.json();
 
-        let output = '<table border="1"><tr><th>ID</th><th>Date</th><th>Product Name</th><th>Price</th></tr>';
-        data.forEach(price => {
-            output += `<tr><td>${price.id}</td><td>${price.date}</td><td>${price.name}</td><td>$${price.price.toFixed(2)}</td></tr>`;
-        });
-        output += '</table>';
+            const products = {};
+            const labels = [];
 
-        document.getElementById('result').innerHTML = output;
+            // 数据处理
+            data.forEach(entry => {
+                if (!labels.includes(entry.date)) {
+                    labels.push(entry.date);
+                }
+                if (!products[entry.name]) {
+                    products[entry.name] = { labels: [], data: [] };
+                }
+                products[entry.name].labels.push(entry.date);
+                products[entry.name].data.push(entry.price);
+            });
+
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            // 构建数据集
+            const datasets = Object.keys(products).map(productName => ({
+                label: productName,
+                data: fillMissingValues(products[productName].labels, products[productName].data, labels),
+                fill: false,
+                borderColor: getRandomColor() // 随机颜色
+            }));
+
+            // 初始化图表
+            const priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels, // 使用手动设置的年份范围作为标签
+                    datasets: datasets
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching data:', error);
+        }
     }
+
+    // 填充缺失的值
+    function fillMissingValues(labels, data, allLabels) {
+        const filledData = [];
+        allLabels.forEach(label => {
+            const index = labels.indexOf(label);
+            if (index !== -1) {
+                filledData.push(data[index]);
+            } else {
+                filledData.push(null); // 添加 null 表示缺失的数据
+            }
+        });
+        return filledData;
+    }
+
+    // 生成随机颜色
+    function getRandomColor() {
+        return '#' + Math.floor(Math.random() * 16777215).toString(16);
+    }
+
+    // 调用函数获取数据并绘制图表
+    fetchPrices();
 </script>
 </body>
 </html>
