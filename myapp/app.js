@@ -17,7 +17,7 @@ let db = new sqlite3.Database('./products.db', (err) => {
 });
 
 app.get('/prices', (req, res) => {
-    const sql = 'SELECT strftime("%Y", date) AS year, name, AVG(price) AS avg_price FROM products GROUP BY year, name';
+    const sql = 'SELECT * FROM products';
     db.all(sql, [], (err, rows) => {
         if (err) {
             console.error(err.message);
@@ -27,7 +27,6 @@ app.get('/prices', (req, res) => {
         res.json(rows);
     });
 });
-
 
 app.post('/add-product', (req, res) => {
     const { date, name, price } = req.body;
